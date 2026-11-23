@@ -140,7 +140,18 @@ def main():
 
     # 1. Script & Visual Queries
     title, script, queries = generate_script_and_queries(topic, duration_min)
+
+    # Mandatory Outro & Disclaimer for Bharati Nature Cure Foundation
+    disclaimer_outro = (
+        " Yaad rahe — ye sirf general naturopathy tips hain. "
+        "Apni personal health ke liye kisi qualified naturopathy doctor se zaroor sampark karein. "
+        "Aap hamare Bharati Nature Cure Foundation, Lucknow se jud sakte hain — link description mein hai."
+    )
+    if disclaimer_outro.strip() not in script:
+        script = script.strip() + " " + disclaimer_outro
+
     print("Title:", title)
+    print("Full Spoken Script (with Lucknow disclaimer):", script[:200], "...")
     print("Queries:", queries)
 
     # 2. Studio Mastered Voiceover (Warm Hindi Lady Doctor)
@@ -257,11 +268,13 @@ def main():
 
     # 6. Deliver to Telegram
     caption = (
-        f"🌿 *Bharati Nature Cure - 100% Free Cloud Video* 🌿\n\n"
+        f"🌿 *Bharati Nature Cure* 🌿\n\n"
         f"🎬 *Title:* {title}\n"
         f"⏱️ *Duration:* {total_dur:.1f}s (~{duration_min} Min)\n"
-        f"📸 *Visuals:* Auto Stock HD Clips + Ken Burns Camera Zoom Motion\n"
-        f"🎙️ *Audio:* Natural AI Doctor Narration\n"
+        f"📸 *Visuals:* Auto HD Stock Clips + Ken Burns Camera Zoom Motion\n"
+        f"🎙️ *Voice:* Style 1 Natural Hindi (Natural Breathing Rhythm)\n"
+        f"🏥 *Foundation:* Bharati Nature Cure Foundation, Lucknow\n"
+        f"🌐 *Website:* [www.bharatinaturecure.com](https://www.bharatinaturecure.com)\n"
         f"✨ *Branding:* @BharatiNatureCure\n\n"
         f"🔗 [Direct Stream / Download]({public_video_url})"
     )
