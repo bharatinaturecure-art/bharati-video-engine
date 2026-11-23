@@ -60,21 +60,37 @@ def fetch_image_from_query(query: str) -> str:
 
 def generate_script_and_queries(topic: str, duration_min: int):
     target_words = duration_min * 135
-    prompt = f"""You are the chief Naturopathy doctor for Bharati Nature Cure.
+    prompt = f"""You are Dr. Bharati, a warm, caring, empathetic senior Naturopathy doctor and wellness guide at Bharati Nature Cure.
 Topic: "{topic}"
-Target Spoken Duration: {duration_min} minute(s) (~{target_words} words).
+Target Duration: Exactly {duration_min} minute(s) (~{target_words} spoken words).
+Speaker Persona: A wise, loving, authoritative Indian female doctor talking warmly to her patients like a caring elder sister or family doctor.
+
+Script Writing Guidelines:
+1. Deep Human Conversational Emotion:
+   - Start with an affectionate, relatable opening acknowledging real pain:
+     "नमस्ते दोस्तों! क्या आपके साथ भी ऐसा होता है कि खाना खाते ही सीने में आग जैसी तेज जलन होने लगती है? और आप तुरंत राहत पाने के लिए हर बार एंटासिड की गोलियां खा लेते हैं? रुकिए! गोलियां सिर्फ समस्या को दबाती हैं, जड़ से खत्म नहीं करतीं..."
+   - Use warm emotional phrasing, gentle rhetorical questions, reassuring advice, and practical kitchen naturopathy steps.
+   - End with heartfelt warmth and blessings: "अपने शरीर को थोड़ा समय और प्यार दीजिए, यह खुद ठीक होना जानता है। ऐसे ही सच्चे और सरल स्वास्थ्य सुझावों के लिए भारती नेचर क्योर से जुड़े रहिए।"
+2. Scene Visual Queries:
+   - Must be natural, aesthetically pleasing vertical/portrait (9:16) stock photo concepts:
+     Scene 1: person touching chest acid reflux heartburn discomfort emotional
+     Scene 2: oily greasy fast food spicy fried meal unhealthy diet
+     Scene 3: fennel seeds saunf in wooden spoon ayurvedic herbal remedy
+     Scene 4: pouring clean lukewarm water in glass morning sunlight
+     Scene 5: fresh green vegetables cucumber mint detox leaves
+     Scene 6: vibrant happy smiling peaceful healthy person in morning nature
 
 Return strict JSON only:
 {{
-  "title": "Short punchy title under 60 chars with 1 emoji",
-  "script_hinglish": "Complete spoken Hinglish script of approx {target_words} words",
+  "title": "Emotional, click-worthy Hindi title with 1 emoji",
+  "script_hinglish": "Complete heartfelt spoken Hindi script (~{target_words} words)",
   "scene_queries": [
-    "search query for scene 1 (problem/symptom)",
-    "search query for scene 2 (root cause/diet mistake)",
-    "search query for scene 3 (first herbal remedy)",
-    "search query for scene 4 (morning routine/water)",
-    "search query for scene 5 (healthy diet detox)",
-    "search query for scene 6 (happy healthy energetic person)"
+    "person touching chest acid reflux heartburn discomfort emotional",
+    "oily greasy fast food spicy fried meal unhealthy diet",
+    "fennel seeds saunf in wooden spoon ayurvedic herbal remedy",
+    "pouring clean lukewarm water in glass morning sunlight",
+    "fresh green vegetables cucumber mint detox leaves",
+    "vibrant happy smiling peaceful healthy person in morning nature"
   ]
 }}"""
     try:
@@ -91,14 +107,14 @@ Return strict JSON only:
     except Exception as e:
         print("Gemini generation error:", e)
         fallback_queries = [
-            f"{topic} problem medical pain",
-            "unhealthy fast food lifestyle",
-            "ayurvedic herbal home remedy seeds",
-            "drinking warm water clean detox",
-            "green organic healthy vegetables fruits",
-            "energetic smiling healthy person in nature"
+            f"{topic} person in discomfort pain emotional",
+            "unhealthy oily spicy fast food meal",
+            "ayurvedic fennel seeds herbal remedy spoon",
+            "drinking warm clean water morning sunlight",
+            "fresh green cucumber mint detox vegetables",
+            "happy smiling healthy person in beautiful nature"
         ]
-        return topic, f"Naturopathy me {topic} ko theek karne ke liye subah gunguna paani piyein aur chemical dawaiyon se bachein. Bharati Nature Cure ko follow karein!", fallback_queries
+        return topic, f"नमस्ते दोस्तों! {topic} को जड़ से खत्म करने के लिए रोज़ सुबह खाली पेट एक गिलास गुनगुना पानी और सौंफ का काढ़ा पिएं। अपने शरीर का ख्याल रखें और भारती नेचर क्योर से जुड़े रहें!", fallback_queries
 
 def main():
     topic = os.getenv("VIDEO_TOPIC", "Acidity & Seene Ki Jalan Ka Permanent Ilaaj")
@@ -127,10 +143,10 @@ def main():
     print("Title:", title)
     print("Queries:", queries)
 
-    # 2. Studio Mastered Voiceover (ElevenLabs Quality)
+    # 2. Studio Mastered Voiceover (Warm Hindi Lady Doctor)
     audio_file = os.path.join(work_dir, "voice.mp3")
-    build_elevenlabs_quality_audio(script, audio_file, voice_type="doctor_male")
-    print("Studio mastered voiceover created!")
+    build_elevenlabs_quality_audio(script, audio_file, voice_type="healer_female")
+    print("Warm Hindi Lady Doctor voiceover created!")
 
     # Probe duration
     probe = subprocess.run(
@@ -140,8 +156,8 @@ def main():
     total_dur = float(probe.stdout.strip() or (duration_min * 60))
     print(f"Total audio duration: {total_dur:.2f}s")
 
-    # 3. Download, Validate and Pre-scale 6 Visuals
-    from PIL import Image
+    # 3. Download, Validate and Natural Aspect-Ratio Crop 6 Visuals
+    from PIL import Image, ImageOps
     import io
 
     FALLBACK_IMAGES = [
@@ -166,10 +182,11 @@ def main():
                 r = requests.get(candidate_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
                 if r.status_code == 200 and len(r.content) > 2000:
                     im = Image.open(io.BytesIO(r.content)).convert("RGB")
-                    im = im.resize((1080, 1920), Image.Resampling.LANCZOS)
-                    im.save(img_dest, "JPEG", quality=92)
+                    # Preserve 100% natural proportions: Center-crop to 9:16 (1080x1920) without ANY stretching!
+                    im = ImageOps.fit(im, (1080, 1920), method=Image.Resampling.LANCZOS, centering=(0.5, 0.4))
+                    im.save(img_dest, "JPEG", quality=95)
                     image_paths.append(img_dest)
-                    print(f"Validated and saved scene {idx} from: {candidate_url[:60]}")
+                    print(f"Validated and natural-cropped scene {idx} from: {candidate_url[:60]}")
                     saved = True
                     break
             except Exception as e:
