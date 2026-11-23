@@ -1,0 +1,43 @@
+name: Publish YouTube Short
+
+on:
+  repository_dispatch:
+    types: [publish_youtube]
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: 'Direct MP4 URL'
+        required: true
+      title:
+        description: 'Short Title'
+        required: false
+        default: 'Bharati Nature Cure Health Tip #Shorts'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          pip install requests google-api-python-client google-auth-oauthlib google-auth-httplib2
+
+      - name: Run YouTube Uploader
+        env:
+          VIDEO_URL: ${{ github.event.client_payload.video_url || inputs.video_url }}
+          VIDEO_TITLE: ${{ github.event.client_payload.title || inputs.title }}
+          CHAT_ID: ${{ github.event.client_payload.chat_id || '8387155304' }}
+          BOT_TOKEN: ${{ github.event.client_payload.bot_token || secrets.BOT_TOKEN }}
+          YT_CLIENT_ID: ${{ github.event.client_payload.yt_client_id || secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ github.event.client_payload.yt_client_secret || secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ github.event.client_payload.yt_refresh_token || secrets.YT_REFRESH_TOKEN }}
+        run: |
+          python .github/scripts/youtube_uploader.py
