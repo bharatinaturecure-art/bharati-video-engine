@@ -30,7 +30,17 @@ def send_telegram_video(video_url: str, caption: str, chat_id: str):
         "chat_id": chat_id,
         "video": video_url,
         "caption": caption,
-        "parse_mode": "Markdown"
+        "parse_mode": "Markdown",
+        "reply_markup": {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "🌐 Visit www.bharatinaturecure.com",
+                        "url": "https://www.bharatinaturecure.com"
+                    }
+                ]
+            ]
+        }
     }).encode("utf-8")
     req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
     try:
@@ -38,6 +48,69 @@ def send_telegram_video(video_url: str, caption: str, chat_id: str):
             return json.loads(r.read().decode())
     except Exception as e:
         print("Telegram sendVideo error:", e)
+
+def create_outro_card(dest_path: str):
+    from PIL import Image, ImageDraw, ImageFont
+
+    def get_font(size: int, bold: bool = False):
+        candidates = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "arialbd.ttf" if bold else "arial.ttf",
+            "C:\\Windows\\Fonts\\arialbd.ttf" if bold else "C:\\Windows\\Fonts\\arial.ttf"
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                try:
+                    return ImageFont.truetype(c, size)
+                except Exception:
+                    pass
+        try:
+            return ImageFont.truetype("arial.ttf", size)
+        except Exception:
+            return ImageFont.load_default()
+
+    W, H = 1080, 1920
+    im = Image.new("RGB", (W, H), color=(11, 35, 24))
+    draw = ImageDraw.Draw(im)
+
+    # Gradient background
+    for y in range(H):
+        r = int(11 + (y / H) * 15)
+        g = int(35 + (y / H) * 20)
+        b = int(24 + (y / H) * 15)
+        draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+    # Outer ornamental borders
+    draw.rectangle([40, 60, W - 40, H - 60], outline=(46, 139, 87), width=4)
+    draw.rectangle([55, 75, W - 55, H - 75], outline=(212, 175, 55), width=2)
+
+    font_hero = get_font(56, bold=True)
+    font_sub = get_font(38, bold=True)
+    font_badge = get_font(42, bold=True)
+    font_url = get_font(48, bold=True)
+    font_desc = get_font(32, bold=False)
+
+    # Header Branding
+    draw.text((W / 2, 380), "BHARATI NATURE CURE", fill=(255, 255, 255), font=font_hero, anchor="mm")
+    draw.text((W / 2, 450), "FOUNDATION, LUCKNOW", fill=(212, 175, 55), font=font_sub, anchor="mm")
+    draw.text((W / 2, 510), "Natural Healing & Holistic Wellness", fill=(180, 220, 190), font=font_desc, anchor="mm")
+
+    # Center Call-to-Action Box
+    draw.rounded_rectangle([70, 720, W - 70, 1280], radius=35, fill=(18, 55, 38), outline=(212, 175, 55), width=4)
+    draw.text((W / 2, 820), "FOR MORE DETAILS & CONSULTATION", fill=(255, 255, 255), font=font_sub, anchor="mm")
+    draw.text((W / 2, 890), "VISIT OUR OFFICIAL WEBSITE", fill=(160, 215, 175), font=font_desc, anchor="mm")
+
+    # Golden Button Container
+    draw.rounded_rectangle([110, 960, W - 110, 1120], radius=25, fill=(212, 175, 55))
+    draw.text((W / 2, 1040), "www.bharatinaturecure.com", fill=(10, 30, 20), font=font_url, anchor="mm")
+
+    # Bottom guidance
+    draw.text((W / 2, 1400), "CLICK THE LINK BELOW", fill=(255, 255, 255), font=font_badge, anchor="mm")
+    draw.text((W / 2, 1460), "Tap the button below or link in description", fill=(180, 210, 190), font=font_desc, anchor="mm")
+
+    im.save(dest_path, "JPEG", quality=95)
+    print("Created branded outro card:", dest_path)
 
 def fetch_image_from_query(query: str) -> str:
     try:
@@ -78,7 +151,6 @@ Script Writing Guidelines:
      Scene 3: fennel seeds saunf in wooden spoon ayurvedic herbal remedy
      Scene 4: pouring clean lukewarm water in glass morning sunlight
      Scene 5: fresh green vegetables cucumber mint detox leaves
-     Scene 6: vibrant happy smiling peaceful healthy person in morning nature
 
 Return strict JSON only:
 {{
@@ -89,8 +161,7 @@ Return strict JSON only:
     "oily greasy fast food spicy fried meal unhealthy diet",
     "fennel seeds saunf in wooden spoon ayurvedic herbal remedy",
     "pouring clean lukewarm water in glass morning sunlight",
-    "fresh green vegetables cucumber mint detox leaves",
-    "vibrant happy smiling peaceful healthy person in morning nature"
+    "fresh green vegetables cucumber mint detox leaves"
   ]
 }}"""
     try:
@@ -111,8 +182,7 @@ Return strict JSON only:
             "unhealthy oily spicy fast food meal",
             "ayurvedic fennel seeds herbal remedy spoon",
             "drinking warm clean water morning sunlight",
-            "fresh green cucumber mint detox vegetables",
-            "happy smiling healthy person in beautiful nature"
+            "fresh green cucumber mint detox vegetables"
         ]
         return topic, f"नमस्ते दोस्तों! {topic} को जड़ से खत्म करने के लिए रोज़ सुबह खाली पेट एक गिलास गुनगुना पानी और सौंफ का काढ़ा पिएं। अपने शरीर का ख्याल रखें और भारती नेचर क्योर से जुड़े रहें!", fallback_queries
 
@@ -134,7 +204,7 @@ def main():
         f"⚡ *GitHub Actions Cloud Runner Activated!* ⚡\n\n"
         f"📌 *Topic:* {topic}\n"
         f"⏱️ *Duration:* {duration_min} Minute\n"
-        f"🚀 100% Free Cloud Runner is rendering your video with HD stock visuals and Ken Burns motion...",
+        f"🚀 100% Free Cloud Runner is rendering your video with HD stock visuals, Ken Burns motion & Official End Card...",
         chat_id
     )
 
@@ -167,7 +237,7 @@ def main():
     total_dur = float(probe.stdout.strip() or (duration_min * 60))
     print(f"Total audio duration: {total_dur:.2f}s")
 
-    # 3. Download, Validate and Natural Aspect-Ratio Crop 6 Visuals
+    # 3. Download, Validate and Natural Aspect-Ratio Crop 5 Visuals + 1 Outro Card
     from PIL import Image, ImageOps
     import io
 
@@ -176,17 +246,18 @@ def main():
         "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1080",
         "https://images.unsplash.com/photo-1505576399279-565b52d4ac71?w=1080",
         "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=1080",
-        "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=1080",
-        "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=1080"
+        "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=1080"
     ]
 
     image_paths = []
-    for idx, q in enumerate(queries[:6], start=1):
+    # 5 content scenes
+    for idx, q in enumerate(queries[:5], start=1):
         img_url = fetch_image_from_query(q)
         img_dest = os.path.join(work_dir, f"scene_{idx}.jpg")
         saved = False
 
-        for candidate_url in [img_url, FALLBACK_IMAGES[idx - 1]]:
+        fallback_idx = min(idx - 1, len(FALLBACK_IMAGES) - 1)
+        for candidate_url in [img_url, FALLBACK_IMAGES[fallback_idx]]:
             if not candidate_url:
                 continue
             try:
@@ -208,6 +279,11 @@ def main():
             im.save(img_dest, "JPEG")
             image_paths.append(img_dest)
 
+    # 6th Scene: Dedicated Branded CTA Outro Card (matches the Lucknow outro disclaimer voiceover!)
+    outro_dest = os.path.join(work_dir, "scene_outro.jpg")
+    create_outro_card(outro_dest)
+    image_paths.append(outro_dest)
+
     if not image_paths:
         send_telegram("❌ Video rendering failed: Could not fetch visual assets.", chat_id)
         sys.exit(1)
@@ -222,7 +298,14 @@ def main():
     
     for idx, img_p in enumerate(image_paths, start=1):
         seg_out = os.path.join(work_dir, f"seg_{idx}.mp4")
-        zoom_expr = "min(zoom+0.0015,1.25)" if idx % 2 == 1 else "max(1.25-0.0015*on,1.0)"
+        # For the outro card (last scene), use very subtle gentle zoom so text remains ultra-sharp and readable
+        if idx == len(image_paths):
+            zoom_expr = "min(zoom+0.0004,1.06)"
+        elif idx % 2 == 1:
+            zoom_expr = "min(zoom+0.0015,1.25)"
+        else:
+            zoom_expr = "max(1.25-0.0015*on,1.0)"
+
         filter_str = (
             f"zoompan=z='{zoom_expr}':d={frames_per_clip}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps={fps},"
             f"setsar=1"
@@ -266,20 +349,19 @@ def main():
 
     public_video_url = f"{INSFORGE_HOST}/api/storage/buckets/videos/objects/{video_key}"
 
-    # 6. Deliver to Telegram
+    # 6. Deliver to Telegram with Clickable Inline Button & Formatted Caption
     caption = (
-        f"🌿 *Bharati Nature Cure* 🌿\n\n"
+        f"🌿 *Bharati Nature Cure Foundation, Lucknow* 🌿\n\n"
         f"🎬 *Title:* {title}\n"
         f"⏱️ *Duration:* {total_dur:.1f}s (~{duration_min} Min)\n"
         f"📸 *Visuals:* Auto HD Stock Clips + Ken Burns Camera Zoom Motion\n"
         f"🎙️ *Voice:* Style 1 Natural Hindi (Natural Breathing Rhythm)\n"
         f"🏥 *Foundation:* Bharati Nature Cure Foundation, Lucknow\n"
-        f"🌐 *Website:* [www.bharatinaturecure.com](https://www.bharatinaturecure.com)\n"
-        f"✨ *Branding:* @BharatiNatureCure\n\n"
-        f"🔗 [Direct Stream / Download]({public_video_url})"
+        f"🌐 *Website:* [www.bharatinaturecure.com](https://www.bharatinaturecure.com)\n\n"
+        f"👇 *Neeche diye gaye button par click karke website kholein:*"
     )
     send_telegram_video(public_video_url, caption, chat_id)
-    print("Delivered to Telegram!")
+    print("Delivered to Telegram with 1-click Website Button!")
 
 if __name__ == "__main__":
     main()
