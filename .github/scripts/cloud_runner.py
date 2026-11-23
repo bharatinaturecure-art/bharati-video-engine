@@ -169,17 +169,16 @@ def main():
     
     for idx, img_p in enumerate(image_paths, start=1):
         seg_out = os.path.join(work_dir, f"seg_{idx}.mp4")
-        zoom_expr = "min(pzoom+0.0015,1.25)" if idx % 2 == 1 else "max(1.25-0.0015*on,1.0)"
+        zoom_expr = "min(zoom+0.0015,1.25)" if idx % 2 == 1 else "max(1.25-0.0015*on,1.0)"
         filter_str = (
-            f"scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
             f"zoompan=z='{zoom_expr}':d={frames_per_clip}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps={fps},"
             f"setsar=1"
         )
         cmd_seg = [
-            "ffmpeg", "-y", "-loop", "1", "-t", f"{clip_dur:.2f}",
+            "ffmpeg", "-y",
             "-i", img_p,
             "-vf", filter_str,
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(fps),
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-t", f"{clip_dur:.2f}",
             seg_out
         ]
         subprocess.run(cmd_seg, check=True)
