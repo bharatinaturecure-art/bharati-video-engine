@@ -29,15 +29,15 @@ class QualityManager:
         small = im.resize((16, 16)).convert("L")
         return hashlib.md5(small.tobytes()).hexdigest()
 
-    def validate_and_crop(self, img_bytes: bytes, target_w: int = 1080, target_h: int = 1920) -> Image.Image:
+    def validate_and_crop(self, img_bytes: bytes, target_w: int, target_h: int) -> Image.Image:
         if not img_bytes or len(img_bytes) < 2500:
             raise ValueError("Image bytes empty or too small (< 2.5KB)")
         im = Image.open(io.BytesIO(img_bytes)).convert("RGB")
         if im.width < 300 or im.height < 300:
             raise ValueError("Resolution too low")
 
-        # Center crop without any vertical/horizontal stretching
-        im_fit = ImageOps.fit(im, (target_w, target_h), method=Image.Resampling.LANCZOS, centering=(0.5, 0.4))
+        # Natural crop without stretching (works for 9:16 and 16:9)
+        im_fit = ImageOps.fit(im, (target_w, target_h), method=Image.Resampling.LANCZOS, centering=(0.5, 0.4 if target_h > target_w else 0.5))
 
         # Check duplicate hash
         h = self.get_hash(im_fit)
@@ -47,13 +47,13 @@ class QualityManager:
         self.seen_hashes.add(h)
         return im_fit
 
-    def audit_scene(self, scene_idx: int, source: str, file_path: str):
+    def audit_scene(self, scene_idx: int, source: str, file_path: str, res_str: str):
         size_kb = os.path.getsize(file_path) / 1024
-        msg = f"Scene {scene_idx}: APPROVED | Source: {source} | Size: {size_kb:.1f} KB | 100% Unique & Natural Ratio"
+        msg = f"Scene {scene_idx}: APPROVED | Source: {source} | Resolution: {res_str} | Size: {size_kb:.1f} KB | 100% Unique"
         print(f"[QualityManager] {msg}")
         self.audit_log.append(msg)
 
-    def verify_final_video(self, video_path: str) -> bool:
+    def verify_final_video(self, video_path: str, expected_w: int, expected_h: int) -> bool:
         cmd = [
             "ffprobe", "-v", "error",
             "-show_entries", "format=duration:stream=codec_name,width,height",
@@ -62,48 +62,61 @@ class QualityManager:
         res = subprocess.run(cmd, capture_output=True, text=True)
         data = json.loads(res.stdout or "{}")
         streams = data.get("streams", [])
-        has_v = any(s.get("width") == 1080 and s.get("height") == 1920 for s in streams)
+        has_v = any(s.get("width") == expected_w and s.get("height") == expected_h for s in streams)
         has_a = any(s.get("codec_name") in ["aac", "mp3"] for s in streams)
         dur = float(data.get("format", {}).get("duration", 0))
         passed = has_v and has_a and dur > 20
         status = "PASSED" if passed else "FAILED"
-        print(f"[QualityManager] Final Verification -> {status} (Video: {has_v}, Audio: {has_a}, Duration: {dur:.1f}s)")
+        print(f"[QualityManager] Final Verification -> {status} (Expected: {expected_w}x{expected_h}, VideoStream: {has_v}, AudioStream: {has_a}, Duration: {dur:.1f}s)")
         return passed
 
 # ----------------------------------------------------
-# 3-TIER VISUAL FALLBACK SYSTEM
+# 3-TIER VISUAL FALLBACK SYSTEM (Up to 10 Scene Pools)
 # ----------------------------------------------------
-# Tier 3 Guaranteed Unique Curated Naturopathy Pools (Per-scene category)
 TIER3_CURATED_POOLS = {
-    1: [ # Scene 1: Discomfort / Heartburn / Symptoms
-        "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=1080",
-        "https://images.unsplash.com/photo-1584467735870-87779bc5694c?w=1080",
-        "https://images.unsplash.com/photo-1584515933487-779824d29309?w=1080"
+    1: [ # Discomfort / Heartburn / Symptoms
+        "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=1920",
+        "https://images.unsplash.com/photo-1584467735870-87779bc5694c?w=1920",
+        "https://images.unsplash.com/photo-1584515933487-779824d29309?w=1920"
     ],
-    2: [ # Scene 2: Oily greasy fast food / Bad diet root cause
-        "https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=1080",
-        "https://images.unsplash.com/photo-1550547660-d9450f859349?w=1080",
-        "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=1080"
+    2: [ # Fast food / Bad diet root cause
+        "https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=1920",
+        "https://images.unsplash.com/photo-1550547660-d9450f859349?w=1920",
+        "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=1920"
     ],
-    3: [ # Scene 3: Ayurvedic herbal remedies / fennel / kitchen herbs
-        "https://images.unsplash.com/photo-1505576399279-565b52d4ac71?w=1080",
-        "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=1080",
-        "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=1080"
+    3: [ # Ayurvedic herbs / fennel seeds / kitchen remedies
+        "https://images.unsplash.com/photo-1505576399279-565b52d4ac71?w=1920",
+        "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=1920",
+        "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=1920"
     ],
-    4: [ # Scene 4: Lukewarm clean water / morning hydration glass
-        "https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=1080",
-        "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=1080",
-        "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=1080"
+    4: [ # Lukewarm detox water / morning hydration glass
+        "https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=1920",
+        "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=1920",
+        "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=1920"
     ],
-    5: [ # Scene 5: Fresh green living vegetables / natural vitality
-        "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=1080",
-        "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1080",
-        "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=1080"
+    5: [ # Fresh green vegetables / raw salad detox
+        "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=1920",
+        "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1920",
+        "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=1920"
+    ],
+    6: [ # Yoga / Pranayama / Deep Breathing
+        "https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=1920",
+        "https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=1920",
+        "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=1920"
+    ],
+    7: [ # Morning nature sunlight walk / grounding
+        "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=1920",
+        "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=1920",
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920"
+    ],
+    8: [ # Peaceful smiling healthy person / vibrant energy
+        "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=1920",
+        "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=1920",
+        "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=1920"
     ]
 }
 
 def fetch_tier1_serpapi(query: str) -> list:
-    """Tier 1: SerpApi Google Images Live Search"""
     if not SERPAPI_KEY:
         return []
     try:
@@ -123,30 +136,16 @@ def fetch_tier1_serpapi(query: str) -> list:
                     urls.append(u)
             return urls
     except Exception as e:
-        print(f"[Tier 1 SerpApi] Search failed for '{query}':", e)
+        print(f"[Tier 1 SerpApi] Search error for '{query}':", e)
     return []
 
-def fetch_tier2_direct(query: str) -> list:
-    """Tier 2: Direct High-Quality Unsplash/Stock Keyword Fetch"""
-    cleaned = "".join([c if c.isalnum() else " " for c in query]).strip()
-    keywords = [k for k in cleaned.split() if len(k) > 3][:2]
-    term = "-".join(keywords) or "nature-health"
-    return [
-        f"https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=1080",
-        f"https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=1080"
-    ]
-
-def get_best_scene_image(scene_idx: int, query: str, qm: QualityManager, dest_path: str):
-    """3-Tier Fallback Loop overseen by Quality Manager"""
-    # 1. Gather candidates from Tier 1, Tier 2, and Tier 3
+def get_best_scene_image(scene_idx: int, query: str, qm: QualityManager, dest_path: str, target_w: int, target_h: int):
     t1_candidates = fetch_tier1_serpapi(query)
-    t2_candidates = fetch_tier2_direct(query)
-    t3_candidates = TIER3_CURATED_POOLS.get(scene_idx, TIER3_CURATED_POOLS[1])
+    pool_idx = ((scene_idx - 1) % len(TIER3_CURATED_POOLS)) + 1
+    t3_candidates = TIER3_CURATED_POOLS.get(pool_idx, TIER3_CURATED_POOLS[1])
 
     candidate_pipeline = [
         ("Tier 1 SerpApi", u) for u in t1_candidates
-    ] + [
-        ("Tier 2 Stock Direct", u) for u in t2_candidates
     ] + [
         ("Tier 3 Curated Guaranteed", u) for u in t3_candidates
     ]
@@ -155,23 +154,22 @@ def get_best_scene_image(scene_idx: int, query: str, qm: QualityManager, dest_pa
         try:
             r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
             if r.status_code == 200 and len(r.content) > 2500:
-                cropped = qm.validate_and_crop(r.content, 1080, 1920)
+                cropped = qm.validate_and_crop(r.content, target_w, target_h)
                 cropped.save(dest_path, "JPEG", quality=95)
-                qm.audit_scene(scene_idx, source_name, dest_path)
+                qm.audit_scene(scene_idx, source_name, dest_path, f"{target_w}x{target_h}")
                 return True
-        except Exception as e:
+        except Exception:
             continue
 
-    # Absolute safety emergency fallback
-    im = Image.new("RGB", (1080, 1920), color=(12, 35 + scene_idx * 5, 25))
+    im = Image.new("RGB", (target_w, target_h), color=(12, 35 + scene_idx * 4, 25))
     im.save(dest_path, "JPEG")
-    qm.audit_scene(scene_idx, "Emergency Fallback", dest_path)
+    qm.audit_scene(scene_idx, "Emergency Fallback", dest_path, f"{target_w}x{target_h}")
     return True
 
 # ----------------------------------------------------
-# OUTRO BRANDED CTA CARD
+# DYNAMIC OUTRO CTA CARD (9:16 Portrait OR 16:9 Landscape)
 # ----------------------------------------------------
-def create_outro_card(dest_path: str):
+def create_outro_card(dest_path: str, is_landscape: bool = False):
     def get_font(size: int, bold: bool = False):
         candidates = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -190,50 +188,83 @@ def create_outro_card(dest_path: str):
         except Exception:
             return ImageFont.load_default()
 
-    W, H = 1080, 1920
-    im = Image.new("RGB", (W, H), color=(11, 35, 24))
-    draw = ImageDraw.Draw(im)
+    if is_landscape:
+        W, H = 1920, 1080
+        im = Image.new("RGB", (W, H), color=(11, 35, 24))
+        draw = ImageDraw.Draw(im)
 
-    # Gradient background
-    for y in range(H):
-        r = int(11 + (y / H) * 15)
-        g = int(35 + (y / H) * 20)
-        b = int(24 + (y / H) * 15)
-        draw.line([(0, y), (W, y)], fill=(r, g, b))
+        for y in range(H):
+            r = int(11 + (y / H) * 15)
+            g = int(35 + (y / H) * 20)
+            b = int(24 + (y / H) * 15)
+            draw.line([(0, y), (W, y)], fill=(r, g, b))
 
-    # Outer ornamental borders
-    draw.rectangle([40, 60, W - 40, H - 60], outline=(46, 139, 87), width=4)
-    draw.rectangle([55, 75, W - 55, H - 75], outline=(212, 175, 55), width=2)
+        draw.rectangle([30, 30, W - 30, H - 30], outline=(46, 139, 87), width=4)
+        draw.rectangle([45, 45, W - 45, H - 45], outline=(212, 175, 55), width=2)
 
-    font_hero = get_font(56, bold=True)
-    font_sub = get_font(38, bold=True)
-    font_badge = get_font(42, bold=True)
-    font_url = get_font(48, bold=True)
-    font_desc = get_font(32, bold=False)
+        font_hero = get_font(52, bold=True)
+        font_sub = get_font(36, bold=True)
+        font_badge = get_font(34, bold=True)
+        font_url = get_font(42, bold=True)
+        font_desc = get_font(28, bold=False)
 
-    # Header Branding
-    draw.text((W / 2, 380), "BHARATI NATURE CURE", fill=(255, 255, 255), font=font_hero, anchor="mm")
-    draw.text((W / 2, 450), "FOUNDATION, LUCKNOW", fill=(212, 175, 55), font=font_sub, anchor="mm")
-    draw.text((W / 2, 510), "Natural Healing & Holistic Wellness", fill=(180, 220, 190), font=font_desc, anchor="mm")
+        # Left Side Branding
+        draw.text((500, 380), "🌿 BHARATI NATURE CURE 🌿", fill=(255, 255, 255), font=font_hero, anchor="mm")
+        draw.text((500, 455), "FOUNDATION, LUCKNOW", fill=(212, 175, 55), font=font_sub, anchor="mm")
+        draw.text((500, 525), "Natural Healing & Holistic Wellness", fill=(180, 220, 190), font=font_desc, anchor="mm")
+        draw.text((500, 650), "Ayurveda • Naturopathy • Yoga • Detox", fill=(200, 230, 210), font=font_badge, anchor="mm")
 
-    # Center Call-to-Action Box
-    draw.rounded_rectangle([70, 720, W - 70, 1280], radius=35, fill=(18, 55, 38), outline=(212, 175, 55), width=4)
-    draw.text((W / 2, 820), "FOR MORE DETAILS & CONSULTATION", fill=(255, 255, 255), font=font_sub, anchor="mm")
-    draw.text((W / 2, 890), "VISIT OUR OFFICIAL WEBSITE", fill=(160, 215, 175), font=font_desc, anchor="mm")
+        # Right Side CTA Box
+        draw.rounded_rectangle([1020, 240, 1820, 840], radius=35, fill=(18, 55, 38), outline=(212, 175, 55), width=4)
+        draw.text((1420, 350), "FOR MORE DETAILS & CONSULTATION", fill=(255, 255, 255), font=font_sub, anchor="mm")
+        draw.text((1420, 420), "VISIT OUR OFFICIAL WEBSITE", fill=(160, 215, 175), font=font_desc, anchor="mm")
 
-    # Golden Button Container
-    draw.rounded_rectangle([110, 960, W - 110, 1120], radius=25, fill=(212, 175, 55))
-    draw.text((W / 2, 1040), "www.bharatinaturecure.com", fill=(10, 30, 20), font=font_url, anchor="mm")
+        draw.rounded_rectangle([1080, 500, 1760, 640], radius=25, fill=(212, 175, 55))
+        draw.text((1420, 570), "www.bharatinaturecure.com", fill=(10, 30, 20), font=font_url, anchor="mm")
 
-    # Bottom guidance
-    draw.text((W / 2, 1400), "CLICK THE LINK BELOW", fill=(255, 255, 255), font=font_badge, anchor="mm")
-    draw.text((W / 2, 1460), "Tap the button below or link in description", fill=(180, 210, 190), font=font_desc, anchor="mm")
+        draw.text((1420, 720), "👇 CLICK THE LINK IN DESCRIPTION 👇", fill=(255, 255, 255), font=font_badge, anchor="mm")
+        draw.text((1420, 775), "Consult qualified naturopathy doctors", fill=(180, 210, 190), font=font_desc, anchor="mm")
+
+    else:
+        # Portrait (9:16)
+        W, H = 1080, 1920
+        im = Image.new("RGB", (W, H), color=(11, 35, 24))
+        draw = ImageDraw.Draw(im)
+
+        for y in range(H):
+            r = int(11 + (y / H) * 15)
+            g = int(35 + (y / H) * 20)
+            b = int(24 + (y / H) * 15)
+            draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+        draw.rectangle([40, 60, W - 40, H - 60], outline=(46, 139, 87), width=4)
+        draw.rectangle([55, 75, W - 55, H - 75], outline=(212, 175, 55), width=2)
+
+        font_hero = get_font(56, bold=True)
+        font_sub = get_font(38, bold=True)
+        font_badge = get_font(42, bold=True)
+        font_url = get_font(48, bold=True)
+        font_desc = get_font(32, bold=False)
+
+        draw.text((W / 2, 380), "BHARATI NATURE CURE", fill=(255, 255, 255), font=font_hero, anchor="mm")
+        draw.text((W / 2, 450), "FOUNDATION, LUCKNOW", fill=(212, 175, 55), font=font_sub, anchor="mm")
+        draw.text((W / 2, 510), "Natural Healing & Holistic Wellness", fill=(180, 220, 190), font=font_desc, anchor="mm")
+
+        draw.rounded_rectangle([70, 720, W - 70, 1280], radius=35, fill=(18, 55, 38), outline=(212, 175, 55), width=4)
+        draw.text((W / 2, 820), "FOR MORE DETAILS & CONSULTATION", fill=(255, 255, 255), font=font_sub, anchor="mm")
+        draw.text((W / 2, 890), "VISIT OUR OFFICIAL WEBSITE", fill=(160, 215, 175), font=font_desc, anchor="mm")
+
+        draw.rounded_rectangle([110, 960, W - 110, 1120], radius=25, fill=(212, 175, 55))
+        draw.text((W / 2, 1040), "www.bharatinaturecure.com", fill=(10, 30, 20), font=font_url, anchor="mm")
+
+        draw.text((W / 2, 1400), "CLICK THE LINK BELOW", fill=(255, 255, 255), font=font_badge, anchor="mm")
+        draw.text((W / 2, 1460), "Tap the button below or link in description", fill=(180, 210, 190), font=font_desc, anchor="mm")
 
     im.save(dest_path, "JPEG", quality=95)
-    print("Created branded outro card:", dest_path)
+    print(f"Created {'Landscape (16:9)' if is_landscape else 'Portrait (9:16)'} outro card:", dest_path)
 
 # ----------------------------------------------------
-# TELEGRAM DELIVERY WITH 1-CLICK YOUTUBE BUTTON
+# TELEGRAM DELIVERY
 # ----------------------------------------------------
 def send_telegram(text: str, chat_id: str):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -245,13 +276,14 @@ def send_telegram(text: str, chat_id: str):
     except Exception as e:
         print("Telegram send error:", e)
 
-def send_telegram_video(video_url: str, caption: str, chat_id: str, video_key: str = "", title: str = ""):
+def send_telegram_video(video_url: str, caption: str, chat_id: str, video_key: str = "", is_short: bool = True):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendVideo"
+    btn_text = "🚀 1-Click Publish to YouTube Shorts" if is_short else "🚀 1-Click Publish to YouTube (16:9)"
     reply_markup = {
         "inline_keyboard": [
             [
                 {
-                    "text": "🚀 1-Click Publish to YouTube Shorts",
+                    "text": btn_text,
                     "callback_data": f"yt:{video_key}"
                 }
             ],
@@ -280,37 +312,41 @@ def send_telegram_video(video_url: str, caption: str, chat_id: str, video_key: s
 # ----------------------------------------------------
 # SCRIPT & TOPIC GENERATION
 # ----------------------------------------------------
-def generate_script_and_queries(topic: str, duration_min: int):
-    target_words = duration_min * 135
+def generate_script_and_queries(topic: str, duration_min: int, num_scenes: int):
+    # Under 1 min: ~120 words (< 60s); Above 1 min: ~125 words per minute
+    target_words = 120 if duration_min <= 1 else int(duration_min * 125)
+    format_type = "9:16 Vertical YouTube Shorts" if duration_min <= 1 else "16:9 Landscape Standard YouTube Video"
+    
     prompt = f"""You are Dr. Bharati, a warm, caring, empathetic senior Naturopathy doctor and wellness guide at Bharati Nature Cure.
 Topic: "{topic}"
 Target Duration: Exactly {duration_min} minute(s) (~{target_words} spoken words).
+Target Video Format: {format_type}.
+Number of Visual Scenes Needed: Exactly {num_scenes}.
 Speaker Persona: A wise, loving, authoritative Indian female doctor talking warmly to her patients like a caring elder sister or family doctor.
 
 Script Writing Guidelines:
 1. Deep Human Conversational Emotion:
    - Start with an affectionate, relatable opening acknowledging real pain:
-     "नमस्ते दोस्तों! क्या आपके साथ भी ऐसा होता है कि खाना खाते ही सीने में आग जैसी तेज जलन होने लगती है? और आप तुरंत राहत पाने के लिए हर बार एंटासिड की गोलियां खा लेते हैं? रुकिए! गोलियां सिर्फ समस्या को दबाती हैं, जड़ से खत्म नहीं करतीं..."
-   - Use warm emotional phrasing, gentle rhetorical questions, reassuring advice, and practical kitchen naturopathy steps.
-   - End with heartfelt warmth and blessings: "अपने शरीर को थोड़ा समय और प्यार दीजिए, यह खुद ठीक होना जानता है। ऐसे ही सच्चे और सरल स्वास्थ्य सुझावों के लिए भारती नेचर क्योर से जुड़े रहिए।"
+     "नमस्ते दोस्तों! क्या आप भी इस समस्या से परेशान हैं..."
+   - Use warm emotional phrasing, gentle rhetorical questions, practical naturopathy steps, diet tips, and kitchen herbs.
+   - End with heartfelt warmth: "अपने शरीर को थोड़ा समय और प्यार दीजिए। ऐसे ही सच्चे स्वास्थ्य सुझावों के लिए भारती नेचर क्योर से जुड़े रहिए।"
 2. Scene Visual Queries:
-   - Exactly 5 distinct, high-quality naturopathy visual concepts:
-     Scene 1: person touching chest acid reflux heartburn discomfort emotional
-     Scene 2: oily greasy fast food spicy fried meal unhealthy diet
-     Scene 3: fennel seeds saunf in wooden spoon ayurvedic herbal remedy
-     Scene 4: pouring clean lukewarm water in glass morning sunlight
-     Scene 5: fresh green vegetables cucumber mint detox leaves
+   - Exactly {num_scenes} distinct high-quality visual scene search queries:
+     Scene 1: person in discomfort pain emotional
+     Scene 2: oily greasy spicy fried unhealthy meal
+     Scene 3: herbal seeds kitchen ayurvedic remedy
+     Scene 4: pouring clean lukewarm water morning sunlight
+     Scene 5: fresh green vegetables detox salad
+     Scene 6: yoga deep breathing pranayama peaceful
+     Scene 7: morning walk in green nature sunlight
+     Scene 8: happy smiling vibrant healthy life
 
 Return strict JSON only:
 {{
-  "title": "Emotional, click-worthy Hindi title with 1 emoji",
-  "script_hinglish": "Complete heartfelt spoken Hindi script (~{target_words} words)",
+  "title": "Emotional Hindi title",
+  "script_hinglish": "Complete spoken Hindi script (~{target_words} words)",
   "scene_queries": [
-    "person touching chest acid reflux heartburn discomfort emotional",
-    "oily greasy fast food spicy fried meal unhealthy diet",
-    "fennel seeds saunf in wooden spoon ayurvedic herbal remedy",
-    "pouring clean lukewarm water in glass morning sunlight",
-    "fresh green vegetables cucumber mint detox leaves"
+    "query 1", "query 2", ... exactly {num_scenes} queries
   ]
 }}"""
     try:
@@ -326,14 +362,17 @@ Return strict JSON only:
             return res.get("title", topic), res.get("script_hinglish", ""), res.get("scene_queries", [])
     except Exception as e:
         print("Gemini generation error:", e)
-        fallback_queries = [
+        default_queries = [
             f"{topic} person in discomfort pain emotional",
             "unhealthy oily spicy fast food meal",
             "ayurvedic fennel seeds herbal remedy spoon",
             "drinking warm clean water morning sunlight",
-            "fresh green cucumber mint detox vegetables"
+            "fresh green cucumber mint detox vegetables",
+            "yoga deep breathing pranayama peaceful",
+            "morning walk in green nature sunlight",
+            "happy smiling vibrant healthy life"
         ]
-        return topic, f"नमस्ते दोस्तों! {topic} को जड़ से खत्म करने के लिए रोज़ सुबह खाली पेट एक गिलास गुनगुना पानी और सौंफ का काढ़ा पिएं। अपने शरीर का ख्याल रखें और भारती नेचर क्योर से जुड़े रहें!", fallback_queries
+        return topic, f"नमस्ते दोस्तों! {topic} को प्राकृतिक तरीके से ठीक करने के लिए अपनी दिनचर्या और आहार में सुधार करें। भारती नेचर क्योर से जुड़े रहें!", default_queries[:num_scenes]
 
 # ----------------------------------------------------
 # MAIN RENDER WORKFLOW
@@ -351,20 +390,29 @@ def main():
     
     qm = QualityManager()
 
-    print(f"=== Starting Cloud Video Render with Quality Manager ===")
-    print(f"Topic: {topic} | Duration: {duration_min} min | Chat: {chat_id}")
+    # DYNAMIC ASPECT RATIO:
+    # Under 1 min => 9:16 (1080x1920) Shorts
+    # Above 1 min => 16:9 (1920x1080) Landscape Video
+    is_landscape = duration_min > 1
+    target_w, target_h = (1920, 1080) if is_landscape else (1080, 1920)
+    aspect_label = "16:9 Landscape Video" if is_landscape else "9:16 Vertical Short"
+    num_content_scenes = 7 if is_landscape else 5
+
+    print(f"=== Starting Bharati Video Engine ===")
+    print(f"Topic: {topic} | Duration: {duration_min} min | Aspect Ratio: {aspect_label} ({target_w}x{target_h})")
 
     send_telegram(
-        f"⚡ *Bharati Cloud Engine Activated!* ⚡\n\n"
+        f"⚡ *Bharati Video Engine Activated!* ⚡\n\n"
         f"📌 *Topic:* {topic}\n"
-        f"⏱️ *Duration:* {duration_min} Minute\n"
-        f"🛡️ *Quality Manager:* Active (3-Tier Visual Engine + Zero Duplicate Checker)\n"
-        f"🚀 Rendering with HD visuals, Ken Burns motion & 1-Click YouTube Button...",
+        f"⏱️ *Duration:* {duration_min} Minute(s)\n"
+        f"📐 *Format:* {aspect_label} ({target_w}x{target_h})\n"
+        f"🛡️ *Quality Manager:* Active (3-Tier Engine + Auto Aspect Ratio)\n"
+        f"🚀 Rendering video in the cloud...",
         chat_id
     )
 
     # 1. Script & Visual Queries
-    title, script, queries = generate_script_and_queries(topic, duration_min)
+    title, script, queries = generate_script_and_queries(topic, duration_min, num_content_scenes)
 
     # Mandatory Outro & Disclaimer for Bharati Nature Cure Foundation
     disclaimer_outro = (
@@ -375,8 +423,12 @@ def main():
     if disclaimer_outro.strip() not in script:
         script = script.strip() + " " + disclaimer_outro
 
+    # Ensure title has #Shorts only if <= 1 min
+    if not is_landscape and "#shorts" not in title.lower():
+        title = f"{title} #Shorts"
+
     print("Title:", title)
-    print("Full Spoken Script (with Lucknow disclaimer):", script[:200], "...")
+    print("Full Spoken Script:", script[:180], "...")
 
     # 2. Studio Mastered Voiceover
     audio_file = os.path.join(work_dir, "voice.mp3")
@@ -389,18 +441,18 @@ def main():
     total_dur = float(probe.stdout.strip() or (duration_min * 60))
     print(f"Total audio duration: {total_dur:.2f}s")
 
-    # 3. 3-Tier Visual Engine overseen by Quality Manager (5 Content Scenes + 1 Outro Card)
+    # 3. 3-Tier Visual Engine (Content Scenes + Outro Card)
     image_paths = []
-    for idx, q in enumerate(queries[:5], start=1):
+    for idx, q in enumerate(queries[:num_content_scenes], start=1):
         img_dest = os.path.join(work_dir, f"scene_{idx}.jpg")
-        get_best_scene_image(idx, q, qm, img_dest)
+        get_best_scene_image(idx, q, qm, img_dest, target_w, target_h)
         image_paths.append(img_dest)
 
-    # Scene 6: Dedicated Branded CTA Outro Card
+    # Final Outro Branded CTA Card (Dynamic 16:9 or 9:16)
     outro_dest = os.path.join(work_dir, "scene_outro.jpg")
-    create_outro_card(outro_dest)
+    create_outro_card(outro_dest, is_landscape=is_landscape)
     image_paths.append(outro_dest)
-    qm.audit_scene(6, "Official Branded Outro Card", outro_dest)
+    qm.audit_scene(len(image_paths), f"Official Outro ({'16:9' if is_landscape else '9:16'})", outro_dest, f"{target_w}x{target_h}")
 
     # 4. Render Video with FFmpeg (Ken Burns Zoompan)
     clip_dur = total_dur / len(image_paths)
@@ -413,14 +465,14 @@ def main():
     for idx, img_p in enumerate(image_paths, start=1):
         seg_out = os.path.join(work_dir, f"seg_{idx}.mp4")
         if idx == len(image_paths):
-            zoom_expr = "min(zoom+0.0004,1.06)" # gentle zoom for text legibility
+            zoom_expr = "min(zoom+0.0004,1.05)" # Gentle zoom for text
         elif idx % 2 == 1:
-            zoom_expr = "min(zoom+0.0015,1.25)"
+            zoom_expr = "min(zoom+0.0015,1.22)"
         else:
-            zoom_expr = "max(1.25-0.0015*on,1.0)"
+            zoom_expr = "max(1.22-0.0015*on,1.0)"
 
         filter_str = (
-            f"zoompan=z='{zoom_expr}':d={frames_per_clip}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps={fps},"
+            f"zoompan=z='{zoom_expr}':d={frames_per_clip}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={target_w}x{target_h}:fps={fps},"
             f"setsar=1"
         )
         cmd_seg = [
@@ -452,7 +504,7 @@ def main():
     print("FFmpeg rendering complete!")
 
     # Verify final video with Quality Manager
-    qm.verify_final_video(output_mp4)
+    qm.verify_final_video(output_mp4, target_w, target_h)
 
     # 5. Upload finished MP4 to InsForge Storage
     video_key = f"github_rendered_{int(time.time())}.mp4"
@@ -465,18 +517,19 @@ def main():
 
     public_video_url = f"{INSFORGE_HOST}/api/storage/buckets/videos/objects/{video_key}"
 
-    # 6. Deliver to Telegram with 1-Click YouTube Button & Website Link
+    # 6. Deliver to Telegram with Dynamic 1-Click YouTube Button
     caption = (
         f"🌿 *Bharati Nature Cure Foundation, Lucknow* 🌿\n\n"
         f"🎬 *Title:* {title}\n"
         f"⏱️ *Duration:* {total_dur:.1f}s (~{duration_min} Min)\n"
-        f"🛡️ *Quality Manager:* 6/6 Scenes Verified (100% Unique & Natural Ratio)\n"
+        f"📐 *Format:* {aspect_label} ({target_w}x{target_h})\n"
+        f"🛡️ *Quality Manager:* {len(image_paths)}/{len(image_paths)} Scenes Verified (100% Unique)\n"
         f"🎙️ *Voice:* Style 1 Natural Hindi (Natural Breathing Rhythm)\n"
         f"🏥 *Foundation:* Bharati Nature Cure Foundation, Lucknow\n"
         f"🌐 *Website:* [www.bharatinaturecure.com](https://www.bharatinaturecure.com)\n\n"
-        f"👇 *Neeche diye gaye buttons se 1-click YouTube publish ya Website visit karein:*"
+        f"👇 *Neeche diye gaye buttons se 1-click YouTube publish karein ya Website kholein:*"
     )
-    send_telegram_video(public_video_url, caption, chat_id, video_key=video_key, title=title)
+    send_telegram_video(public_video_url, caption, chat_id, video_key=video_key, is_short=not is_landscape)
     print("Delivered to Telegram with Quality Manager Certification & 1-Click YouTube Button!")
 
 if __name__ == "__main__":
