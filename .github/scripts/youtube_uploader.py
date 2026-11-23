@@ -7,11 +7,11 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-CLIENT_ID = os.getenv("YT_CLIENT_ID", "")
-CLIENT_SECRET = os.getenv("YT_CLIENT_SECRET", "")
-REFRESH_TOKEN = os.getenv("YT_REFRESH_TOKEN", "")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-CHAT_ID = os.getenv("CHAT_ID", "8387155304")
+CLIENT_ID = os.getenv("YT_CLIENT_ID") or os.getenv("PAYLOAD_CLIENT_ID") or ""
+CLIENT_SECRET = os.getenv("YT_CLIENT_SECRET") or os.getenv("PAYLOAD_CLIENT_SECRET") or ""
+REFRESH_TOKEN = os.getenv("YT_REFRESH_TOKEN") or os.getenv("PAYLOAD_REFRESH_TOKEN") or ""
+BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("PAYLOAD_BOT_TOKEN") or ""
+CHAT_ID = os.getenv("CHAT_ID") or os.getenv("PAYLOAD_CHAT_ID") or "8387155304"
 
 def send_telegram(text: str, chat_id: str, reply_markup: dict = None):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -71,9 +71,9 @@ def upload_video_to_youtube(video_path: str, title: str, description: str, tags:
     return video_id
 
 def main():
-    video_url = os.getenv("VIDEO_URL", "")
-    title = os.getenv("VIDEO_TITLE", "Acidity & Seene Ki Jalan Ka Permanent Ilaaj #Shorts")
-    chat_id = os.getenv("CHAT_ID", CHAT_ID)
+    video_url = os.getenv("VIDEO_URL") or os.getenv("PAYLOAD_VIDEO_URL") or os.getenv("INPUT_VIDEO_URL") or ""
+    title = os.getenv("VIDEO_TITLE") or os.getenv("PAYLOAD_TITLE") or os.getenv("INPUT_TITLE") or "Acidity & Seene Ki Jalan Ka Permanent Ilaaj #Shorts"
+    chat_id = os.getenv("CHAT_ID") or os.getenv("PAYLOAD_CHAT_ID") or CHAT_ID
 
     if not video_url:
         print("Error: No VIDEO_URL provided.")

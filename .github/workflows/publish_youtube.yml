@@ -31,12 +31,14 @@ jobs:
 
       - name: Run YouTube Uploader
         env:
-          VIDEO_URL: ${{ github.event.client_payload.video_url || inputs.video_url }}
-          VIDEO_TITLE: ${{ github.event.client_payload.title || inputs.title }}
-          CHAT_ID: ${{ github.event.client_payload.chat_id || '8387155304' }}
-          BOT_TOKEN: ${{ github.event.client_payload.bot_token || secrets.BOT_TOKEN }}
-          YT_CLIENT_ID: ${{ github.event.client_payload.yt_client_id || secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET: ${{ github.event.client_payload.yt_client_secret || secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN: ${{ github.event.client_payload.yt_refresh_token || secrets.YT_REFRESH_TOKEN }}
+          PAYLOAD_VIDEO_URL: ${{ github.event.client_payload.video_url }}
+          PAYLOAD_TITLE: ${{ github.event.client_payload.title }}
+          PAYLOAD_CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          PAYLOAD_BOT_TOKEN: ${{ github.event.client_payload.bot_token }}
+          PAYLOAD_CLIENT_ID: ${{ github.event.client_payload.yt_client_id }}
+          PAYLOAD_CLIENT_SECRET: ${{ github.event.client_payload.yt_client_secret }}
+          PAYLOAD_REFRESH_TOKEN: ${{ github.event.client_payload.yt_refresh_token }}
+          INPUT_VIDEO_URL: ${{ inputs.video_url }}
+          INPUT_TITLE: ${{ inputs.title }}
         run: |
           python .github/scripts/youtube_uploader.py
