@@ -1,0 +1,53 @@
+name: Bharati Nature Cure - Cloud Video Renderer
+
+on:
+  repository_dispatch:
+    types: [render_video]
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: 'Health Topic'
+        required: true
+        default: 'Acidity & Seene Ki Jalan Ka Permanent Ilaaj'
+      duration_min:
+        description: 'Duration in Minutes (1, 2, 3, 5)'
+        required: true
+        default: '1'
+      chat_id:
+        description: 'Telegram Chat ID'
+        required: false
+        default: '8387155304'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Dependencies
+        run: |
+          pip install requests edge-tts pydantic
+
+      - name: Run Cloud Video Engine
+        env:
+          VIDEO_TOPIC: ${{ github.event.client_payload.topic || github.event.inputs.topic || 'Acidity & Seene Ki Jalan Ka Permanent Ilaaj' }}
+          VIDEO_DURATION_MIN: ${{ github.event.client_payload.duration_min || github.event.inputs.duration_min || '1' }}
+          CHAT_ID: ${{ github.event.client_payload.chat_id || github.event.inputs.chat_id || '8387155304' }}
+          BOT_TOKEN: ${{ github.event.client_payload.bot_token || secrets.BOT_TOKEN }}
+          INSFORGE_HOST: ${{ github.event.client_payload.insforge_host || secrets.INSFORGE_HOST || 'https://i8vqipie.ap-southeast.insforge.app' }}
+          INSFORGE_KEY: ${{ github.event.client_payload.insforge_key || secrets.INSFORGE_KEY }}
+          GEMINI_KEY: ${{ github.event.client_payload.gemini_key || secrets.GEMINI_KEY }}
+          SERPAPI_KEY: ${{ github.event.client_payload.serpapi_key || secrets.SERPAPI_KEY }}
+        run: |
+          python .github/scripts/cloud_runner.py
