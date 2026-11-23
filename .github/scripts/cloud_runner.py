@@ -140,20 +140,45 @@ def main():
     total_dur = float(probe.stdout.strip() or (duration_min * 60))
     print(f"Total audio duration: {total_dur:.2f}s")
 
-    # 3. Download 6 Visuals
+    # 3. Download, Validate and Pre-scale 6 Visuals
+    from PIL import Image
+    import io
+
+    FALLBACK_IMAGES = [
+        "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=1080",
+        "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1080",
+        "https://images.unsplash.com/photo-1505576399279-565b52d4ac71?w=1080",
+        "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=1080",
+        "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=1080",
+        "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=1080"
+    ]
+
     image_paths = []
     for idx, q in enumerate(queries[:6], start=1):
         img_url = fetch_image_from_query(q)
         img_dest = os.path.join(work_dir, f"scene_{idx}.jpg")
-        try:
-            r = requests.get(img_url, timeout=15)
-            if r.status_code == 200:
-                with open(img_dest, "wb") as f:
-                    f.write(r.content)
-                image_paths.append(img_dest)
-                print(f"Downloaded scene {idx}: {img_url[:60]}")
-        except Exception as e:
-            print(f"Failed to fetch {img_url}: {e}")
+        saved = False
+
+        for candidate_url in [img_url, FALLBACK_IMAGES[idx - 1]]:
+            if not candidate_url:
+                continue
+            try:
+                r = requests.get(candidate_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                if r.status_code == 200 and len(r.content) > 2000:
+                    im = Image.open(io.BytesIO(r.content)).convert("RGB")
+                    im = im.resize((1080, 1920), Image.Resampling.LANCZOS)
+                    im.save(img_dest, "JPEG", quality=92)
+                    image_paths.append(img_dest)
+                    print(f"Validated and saved scene {idx} from: {candidate_url[:60]}")
+                    saved = True
+                    break
+            except Exception as e:
+                print(f"Candidate image failed for scene {idx}: {e}")
+
+        if not saved:
+            im = Image.new("RGB", (1080, 1920), color=(20, 60, 40))
+            im.save(img_dest, "JPEG")
+            image_paths.append(img_dest)
 
     if not image_paths:
         send_telegram("❌ Video rendering failed: Could not fetch visual assets.", chat_id)

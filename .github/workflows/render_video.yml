@@ -37,7 +37,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install requests edge-tts pydantic
+          pip install requests edge-tts pydantic pillow
 
       - name: Run Cloud Video Engine
         env:
