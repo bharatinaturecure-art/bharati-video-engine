@@ -49,5 +49,6 @@ jobs:
           INSFORGE_KEY: ${{ github.event.client_payload.insforge_key || secrets.INSFORGE_KEY }}
           GEMINI_KEY: ${{ github.event.client_payload.gemini_key || secrets.GEMINI_KEY }}
           SERPAPI_KEY: ${{ github.event.client_payload.serpapi_key || secrets.SERPAPI_KEY }}
+          CUSTOM_SCRIPT: ${{ github.event.client_payload.custom_script || '' }}
         run: |
           python .github/scripts/cloud_runner.py

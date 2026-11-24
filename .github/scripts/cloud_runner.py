@@ -412,7 +412,14 @@ def main():
     )
 
     # 1. Script & Visual Queries
-    title, script, queries = generate_script_and_queries(topic, duration_min, num_content_scenes)
+    custom_script = os.getenv("CUSTOM_SCRIPT", "").strip()
+    if custom_script:
+        print("[Script Manager] Using Approved Custom Script from User Review!")
+        title = topic
+        script = custom_script
+        _, _, queries = generate_script_and_queries(topic, duration_min, num_content_scenes)
+    else:
+        title, script, queries = generate_script_and_queries(topic, duration_min, num_content_scenes)
 
     # Mandatory Outro & Disclaimer for Bharati Nature Cure Foundation
     disclaimer_outro = (
