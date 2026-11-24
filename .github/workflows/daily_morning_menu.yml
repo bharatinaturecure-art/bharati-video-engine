@@ -1,0 +1,25 @@
+name: Daily 7:00 AM Morning Menu
+
+on:
+  schedule:
+    - cron: '30 1 * * *' # 01:30 UTC = 07:00 AM IST
+  workflow_dispatch:
+
+jobs:
+  send_menu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Send Daily Naturopathy Menu to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN || '9106881636:AAHWxgYkYdH4BPbsjPH1RT1poeS-SZ0psqs' }}
+          CHAT_ID: ${{ secrets.CHAT_ID || '8387155304' }}
+        run: |
+          python .github/scripts/send_daily_menu.py
