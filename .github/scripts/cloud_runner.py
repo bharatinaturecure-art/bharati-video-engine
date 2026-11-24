@@ -10,12 +10,23 @@ import io
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 from voice_studio import build_elevenlabs_quality_audio
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-DEFAULT_CHAT_ID = os.getenv("CHAT_ID", "8387155304")
-INSFORGE_HOST = os.getenv("INSFORGE_HOST", "https://i8vqipie.ap-southeast.insforge.app")
-INSFORGE_KEY = os.getenv("INSFORGE_KEY", "")
-GEMINI_KEY = os.getenv("GEMINI_KEY", "")
-SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
+# Load event payload if running in GitHub Actions
+_event_payload = {}
+_event_path = os.getenv("GITHUB_EVENT_PATH")
+if _event_path and os.path.exists(_event_path):
+    try:
+        with open(_event_path, "r", encoding="utf-8") as _f:
+            _event_data = json.load(_f)
+            _event_payload = _event_data.get("client_payload") or _event_data.get("inputs") or {}
+    except Exception as _e:
+        print("Could not parse GITHUB_EVENT_PATH:", _e)
+
+BOT_TOKEN = _event_payload.get("bot_token") or os.getenv("BOT_TOKEN", "")
+DEFAULT_CHAT_ID = str(_event_payload.get("chat_id") or os.getenv("CHAT_ID", "8387155304"))
+INSFORGE_HOST = _event_payload.get("insforge_host") or os.getenv("INSFORGE_HOST", "https://i8vqipie.ap-southeast.insforge.app")
+INSFORGE_KEY = _event_payload.get("insforge_key") or os.getenv("INSFORGE_KEY", "")
+GEMINI_KEY = _event_payload.get("gemini_key") or os.getenv("GEMINI_KEY", "")
+SERPAPI_KEY = _event_payload.get("serpapi_key") or os.getenv("SERPAPI_KEY", "")
 
 # ----------------------------------------------------
 # QUALITY MANAGER ENGINE
@@ -378,12 +389,13 @@ Return strict JSON only:
 # MAIN RENDER WORKFLOW
 # ----------------------------------------------------
 def main():
-    topic = os.getenv("VIDEO_TOPIC", "Acidity & Seene Ki Jalan Ka Permanent Ilaaj")
+    topic = _event_payload.get("topic") or os.getenv("VIDEO_TOPIC", "Acidity & Seene Ki Jalan Ka Permanent Ilaaj")
     try:
-        duration_min = int(os.getenv("VIDEO_DURATION_MIN", "1"))
+        duration_min = int(_event_payload.get("duration_min") or os.getenv("VIDEO_DURATION_MIN", "1"))
     except Exception:
         duration_min = 1
-    chat_id = os.getenv("CHAT_ID", DEFAULT_CHAT_ID)
+    chat_id = str(_event_payload.get("chat_id") or os.getenv("CHAT_ID", DEFAULT_CHAT_ID))
+    custom_script = (_event_payload.get("custom_script") or os.getenv("CUSTOM_SCRIPT") or "").strip()
 
     work_dir = os.path.abspath("temp_render")
     os.makedirs(work_dir, exist_ok=True)
@@ -412,7 +424,6 @@ def main():
     )
 
     # 1. Script & Visual Queries
-    custom_script = os.getenv("CUSTOM_SCRIPT", "").strip()
     if custom_script:
         print("[Script Manager] Using Approved Custom Script from User Review!")
         title = topic
