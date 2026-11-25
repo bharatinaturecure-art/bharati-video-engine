@@ -424,12 +424,17 @@ def main():
     )
 
     # 1. Script & Visual Queries
-    if custom_script:
-        print("[Script Manager] Using Approved Custom Script from User Review!")
+    min_words_needed = 70 if duration_min <= 1 else (duration_min * 90)
+    script_word_count = len(custom_script.split()) if custom_script else 0
+
+    if custom_script and script_word_count >= min_words_needed:
+        print(f"[Script Manager] Using Approved Custom Script ({script_word_count} words for {duration_min} min video)!")
         title = topic
         script = custom_script
         _, _, queries = generate_script_and_queries(topic, duration_min, num_content_scenes)
     else:
+        if custom_script:
+            print(f"[Script Manager] Notice: Provided custom_script was too short ({script_word_count} words, needed >= {min_words_needed}). Generating full doctor script for {duration_min} min!")
         title, script, queries = generate_script_and_queries(topic, duration_min, num_content_scenes)
 
     # Mandatory Outro & Disclaimer for Bharati Nature Cure Foundation
