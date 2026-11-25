@@ -38,6 +38,7 @@ jobs:
           PAYLOAD_CLIENT_ID: ${{ github.event.client_payload.yt_client_id }}
           PAYLOAD_CLIENT_SECRET: ${{ github.event.client_payload.yt_client_secret }}
           PAYLOAD_REFRESH_TOKEN: ${{ github.event.client_payload.yt_refresh_token }}
+          PAYLOAD_THUMBNAIL_URL: ${{ github.event.client_payload.thumbnail_url }}
           INPUT_VIDEO_URL: ${{ inputs.video_url }}
           INPUT_TITLE: ${{ inputs.title }}
         run: |
